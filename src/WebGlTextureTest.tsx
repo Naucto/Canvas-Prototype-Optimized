@@ -1,36 +1,30 @@
 import { useEffect, useRef } from "react";
 import './App.css'
-import { arrayTable, palette } from "./Spritesheet";
 
 export default function WebGLCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const WIDTH = 128;
     const HEIGHT = 128;
-    // const pallette = [
-    //     { name: "black", hex: "#000000" },
-    //     { name: "dark-blue", hex: "#1D2B53" },
-    //     { name: "dark-purple", hex: "#7E2553" },
-    //     { name: "dark-green", hex: "#008751" },
-    //     { name: "brown", hex: "#AB5236" },
-    //     { name: "dark-grey", hex: "#5F574F" },
-    //     { name: "light-grey", hex: "#C2C3C7" },
-    //     { name: "white", hex: "#FFF1E8" },
-    //     { name: "red", hex: "#FF004D" },
-    //     { name: "orange", hex: "#FFA300" },
-    //     { name: "yellow", hex: "#FFEC27" },
-    //     { name: "green", hex: "#00E436" },
-    //     { name: "blue", hex: "#29ADFF" },
-    //     { name: "lavender", hex: "#83769C" },
-    //     { name: "pink", hex: "#FF77A8" },
-    //     { name: "peach", hex: "#FFCCAA" },
-    // ]
-
-    const paletteTexture = new Uint8Array(palette)
-    
-    console.log(arrayTable)
+    const pallette = [
+        { name: "black", hex: "#000000" },
+        { name: "dark-blue", hex: "#1D2B53" },
+        { name: "dark-purple", hex: "#7E2553" },
+        { name: "dark-green", hex: "#008751" },
+        { name: "brown", hex: "#AB5236" },
+        { name: "dark-grey", hex: "#5F574F" },
+        { name: "light-grey", hex: "#C2C3C7" },
+        { name: "white", hex: "#FFF1E8" },
+        { name: "red", hex: "#FF004D" },
+        { name: "orange", hex: "#FFA300" },
+        { name: "yellow", hex: "#FFEC27" },
+        { name: "green", hex: "#00E436" },
+        { name: "blue", hex: "#29ADFF" },
+        { name: "lavender", hex: "#83769C" },
+        { name: "pink", hex: "#FF77A8" },
+        { name: "peach", hex: "#FFCCAA" },
+    ]
 
     useEffect(() => {
-        
         const canvas = canvasRef.current;
         if (!canvas) return;
 
@@ -41,10 +35,24 @@ export default function WebGLCanvas() {
         }
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); // comme je suis en RGB, ça sera probablement
         // pas un multiple de 4 mais de 3 obligatoirement, sauf si je fait un array de 4 par 4 
-        const spriteSheet = 128;
 
-        // const arrayBuffer = createColorRect(spriteSheet, spriteSheet, 100, 0, 100);
-        const arrayBuffer = arrayTable
+        function createColorRect(width, height, r, g, b) {
+            const data = new Uint8Array(width * height * 3);
+        
+            for (let i = 0; i < width * height; i++) {
+                const offset = i * 3;
+                const n = 10 * Math.floor(i/10)* 10
+                data[offset] = (r + n) % 256;
+                data[offset + 1] = (g + n) % 256;
+                data[offset + 2] = (b + n) % 256;
+            }
+        
+            return data;
+        }
+        const spriteSize = 126;
+
+        const arrayBuffer = createColorRect(spriteSize, spriteSize, 100, 0, 100);
+    
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
 
@@ -52,38 +60,18 @@ export default function WebGLCanvas() {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        console.log(arrayBuffer)
+
         gl.texImage2D(
             gl.TEXTURE_2D,
             0,
             gl.RGB,
-            spriteSheet,
-            spriteSheet,
+            spriteSize,
+            spriteSize,
             0,
             gl.RGB,
             gl.UNSIGNED_BYTE,
             new Uint8Array(arrayBuffer)
         );
-
-        const paletteTexture = gl.createTexture();
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, paletteTexture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.RGB,
-            16,
-            1,
-            0,
-            gl.RGB,
-            gl.UNSIGNED_BYTE,
-            new Uint8Array(palette)
-        );
-
 
         function rectangleToVertices(x, y, width, height) {
             return new Float32Array([
@@ -96,7 +84,7 @@ export default function WebGLCanvas() {
             ]);
         }
 
-        const vertices = rectangleToVertices(0,0, 128, 128);
+        const vertices = rectangleToVertices(0,0, 8, 8);
         const vertexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
@@ -111,21 +99,17 @@ export default function WebGLCanvas() {
             vec2 normalized = a_position / vec2(${WIDTH}, ${HEIGHT});
             vec2 clipSpace = normalized * 2.0 - 1.0;
             gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
-            v_uv = (a_position + vec2(${offset_x}, ${offset_y}) ) / vec2(${spriteSheet}, ${spriteSheet});
+            v_uv = (a_position + vec2(${offset_x}, ${offset_y}) ) / vec2(${spriteSize}, ${spriteSize});
         }
         `;
 
         const fragmentShaderSource = `
         precision mediump float;
-        uniform sampler2D u_paletteTex;
         uniform sampler2D u_texture;
         varying vec2 v_uv;
         
         void main() {
-            int index = int(texture2D(u_texture, v_uv).r * 255.0 + 0.5);
-            vec2 uv = vec2(float(index) / 16.0, 0.0);
-            vec4 color = texture2D(u_paletteTex, uv);
-            gl_FragColor = vec4(color.r, color.g, color.b, 1.0);
+            gl_FragColor = texture2D(u_texture, v_uv);
         }`;
 
         const vertexShader = gl.createShader(gl.VERTEX_SHADER);
@@ -177,9 +161,6 @@ export default function WebGLCanvas() {
             0,
             0
         );
-
-        const paletteTexLoc = gl.getUniformLocation(program, "u_paletteTex");
-        gl.uniform1i(paletteTexLoc, 1);
 
         const texLoc = gl.getUniformLocation(program, "u_texture");
         gl.uniform1i(texLoc, 0);
