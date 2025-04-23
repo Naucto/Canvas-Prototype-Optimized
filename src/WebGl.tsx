@@ -12,7 +12,11 @@ export default function WebGLCanvas() {
     const spriteNumber = spriteSheetSize / SPRITESIZE;
     let gl : WebGL2RenderingContext;
     let program : WebGLProgram;
-    let posLoc : number;
+    let uvLoc : number;
+    let batchedVertices : number[] = [];
+    let batchedUVs : number[] = [];
+    let batchedFlips : number[] = [];
+
 
     useEffect(() => {
         
@@ -41,31 +45,31 @@ export default function WebGLCanvas() {
         // since the sprite sheet is 128x128 and won't change in game
         
         const vertexShaderSource = `
-        attribute vec2 vertex_position;
-        varying vec2 v_uv;
-        uniform float offset_x;
-        uniform float offset_y;
+            attribute vec2 vertex_position;
+            attribute vec2 vertex_uv;
+            attribute vec2 flip;
+            varying vec2 v_uv;
 
-        void main() {
-            vec2 normalized = vertex_position / vec2(${WIDTH}, ${HEIGHT});
-            vec2 clipSpace = normalized * 2.0 - 1.0;
-            gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
-            v_uv = (vertex_position + vec2(offset_x, offset_y)) / vec2(${spriteSheetSize}, ${spriteSheetSize});
-        }
+            void main() {
+                vec2 normalized = vertex_position / vec2(${WIDTH}.0, ${HEIGHT}.0);
+                vec2 clipSpace = normalized * 2.0 - 1.0;
+                gl_Position = vec4(clipSpace.x * flip.x, -clipSpace.y * flip.y, 0.0, 1.0);
+                v_uv = vertex_uv;
+            }
         `;
 
         const fragmentShaderSource = `
-        precision mediump float;
-        uniform sampler2D u_paletteTex;
-        uniform sampler2D u_texture;
-        varying vec2 v_uv;
-        
-        void main() {
-            int index = int(texture2D(u_texture, v_uv).r * 255.0 + 0.5);
-            vec2 uv = vec2(float(index) / 16.0, 0.0); // pallete is 16 don't forget to change
-            vec4 color = texture2D(u_paletteTex, uv);
-            gl_FragColor = vec4(color.r, color.g, color.b, 1.0);
-        }`;
+            precision mediump float;
+            uniform sampler2D u_paletteTex;
+            uniform sampler2D u_texture;
+            varying vec2 v_uv;
+            
+            void main() {
+                int index = int(texture2D(u_texture, v_uv).r * 255.0 + 0.5);
+                vec2 uv = vec2(float(index) / 16.0, 0.0); // pallete is 16 don't forget to change
+                vec4 color = texture2D(u_paletteTex, uv);
+                gl_FragColor = vec4(color.r, color.g, color.b, 1.0);
+            }`;
 
         const vertexShader = setShader(gl, vertexShaderSource, gl.VERTEX_SHADER);
         if (!vertexShader) {
@@ -77,10 +81,10 @@ export default function WebGLCanvas() {
 
         program = setProgram(gl, vertexShader, fragmentShader);
 
-        posLoc = gl.getAttribLocation(program, "vertex_position");
-        gl.enableVertexAttribArray(posLoc);
+        uvLoc = gl.getAttribLocation(program, "vertex_uv");
+        gl.enableVertexAttribArray(uvLoc);
         gl.vertexAttribPointer(
-            posLoc,
+            uvLoc,
             2,
             gl.FLOAT,
             false,
@@ -100,38 +104,60 @@ export default function WebGLCanvas() {
 
     
 
-    function spr(gl, program, n: number, x: number, y: number, width: number = 1, height: number = 1) {
+    function spr(gl, program, n: number, x: number, y: number, width: number = 1, height: number = 1, flip_h: number = 0, flip_v: number = 0) {
         x = Math.floor(x);
         y = Math.floor(y);
+        flip_h = flip_h ? -1 : 1;
+        flip_v = flip_v ? -1 : 1;
         const x_sprite = n % (spriteNumber);
         const y_sprite = Math.floor(n / (spriteNumber));
 
-        const vertices = rectangleToVertices(x,
-                                             y,
-                                             width * SPRITESIZE,
-                                             height * SPRITESIZE);
-                                            
-        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+        const uv = rectangleToVertices(
+            x_sprite * SPRITESIZE,
+            y_sprite * SPRITESIZE,
+            width * SPRITESIZE,
+            height * SPRITESIZE
+          ).map(v => v / spriteSheetSize);
 
-        gl.vertexAttribPointer(
-            posLoc,
-            2,
-            gl.FLOAT,
-            false,
-            0,
-            0
+        const vertices = rectangleToVertices(
+            x,
+            y,
+            width * SPRITESIZE,
+            height * SPRITESIZE
         );
-        gl.enableVertexAttribArray(posLoc);
-        const offsetXLoc = gl.getUniformLocation(program, "offset_x");
-        const offsetYLoc = gl.getUniformLocation(program, "offset_y");
-        console.log(x_sprite * SPRITESIZE - x)
-        gl.uniform1f(offsetXLoc, x_sprite * SPRITESIZE - x);
-        gl.uniform1f(offsetYLoc, y_sprite * SPRITESIZE - y);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+        // gl.drawArrays(gl.TRIANGLES, 0, 6);
+        batchedVertices.push(...vertices);
+        batchedUVs.push(...uv);
+        batchedFlips.push(flip_h, flip_v);
     }
 
     function draw() {
+        const vertexBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(batchedVertices), gl.STATIC_DRAW);
+        const posLoc = gl.getAttribLocation(program, "vertex_position");
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(posLoc);
 
+        const uvBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, uvBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(batchedUVs), gl.STATIC_DRAW);
+        gl.vertexAttribPointer(uvLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(uvLoc);
+
+        const flipBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, flipBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(batchedFlips), gl.STATIC_DRAW);
+
+        const flipLoc = gl.getAttribLocation(program, "flip");
+        gl.vertexAttribPointer(flipLoc, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(flipLoc);
+
+        gl.drawArrays(gl.TRIANGLES, 0, batchedVertices.length / 2);
+        
+        batchedVertices = [];
+        batchedUVs = [];
     }
 
     useEffect(() => {
@@ -144,26 +170,22 @@ export default function WebGLCanvas() {
         const interval = setInterval(() => {
             gl.clear(gl.COLOR_BUFFER_BIT);
 
-            const radius = 50;
-            const centerX = WIDTH / 2;
-            const centerY = HEIGHT / 2;
 
 
-            for (let i = 0; i < 320*180/8; i++) {
+            for (let i = 0; i < 1000; i++) {
                 const spriteIndex = 112 + i % 8;
-                const xOffset = (i % 4) * SPRITESIZE;
-                const yOffset = i / 4 * SPRITESIZE;
+                const xOffset = (i % 4);
                 const x = x_delta + i ;
-                const y = i % 16 * SPRITESIZE;
-                spr(gl, program, spriteIndex, x + xOffset, y);
+                const y = i % 22 * SPRITESIZE;
+                spr(gl, program, spriteIndex, x + xOffset, y, 1, 1, 1, 0);
             }
-            draw();
             
             angle += 0.05;
-            x_delta += 4;
-            if (x_delta > 100) {
+            x_delta += 5;
+            if (x_delta > 300) {
                 x_delta = -100;
             }
+            draw();
         }, 1000 / 60);
 
         return () => clearInterval(interval);
