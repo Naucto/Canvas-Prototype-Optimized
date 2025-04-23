@@ -7,19 +7,24 @@ export default function WebGLCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const WIDTH = 320;
     const HEIGHT = 180;
+    const SPRITESIZE = 8;
+    const spriteSheetSize = 128;
+    const spriteNumber = spriteSheetSize / SPRITESIZE;
+    let gl : WebGL2RenderingContext;
+    let program : WebGLProgram;
+    let posLoc : number;
 
     useEffect(() => {
         
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const gl = createGLContext(canvas);
+        gl = createGLContext(canvas);
 
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-        const spriteSheet = 128;
 
         const arrayBuffer = arrayTable
-        setTexture(gl, spriteSheet, spriteSheet, new Uint8Array(arrayBuffer), gl.LUMINANCE);
+        setTexture(gl, spriteSheetSize, spriteSheetSize, new Uint8Array(arrayBuffer), gl.LUMINANCE);
 
         // I couldn't use an vec3 for the color in the fragment shader because it doesn't allow dynamic indexing
         // it is why I use a 1D texture
@@ -38,14 +43,14 @@ export default function WebGLCanvas() {
         const vertexShaderSource = `
         attribute vec2 vertex_position;
         varying vec2 v_uv;
-        uniform int offset_x;
-        uniform int offset_y;
+        uniform float offset_x;
+        uniform float offset_y;
 
         void main() {
             vec2 normalized = vertex_position / vec2(${WIDTH}, ${HEIGHT});
             vec2 clipSpace = normalized * 2.0 - 1.0;
             gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
-            v_uv = (vertex_position + vec2(offset_x, offset_y)) / vec2(${spriteSheet}, ${spriteSheet});
+            v_uv = (vertex_position + vec2(offset_x, offset_y)) / vec2(${spriteSheetSize}, ${spriteSheetSize});
         }
         `;
 
@@ -57,48 +62,22 @@ export default function WebGLCanvas() {
         
         void main() {
             int index = int(texture2D(u_texture, v_uv).r * 255.0 + 0.5);
-            vec2 uv = vec2(float(index) / 15.0, 0.0);
+            vec2 uv = vec2(float(index) / 16.0, 0.0); // pallete is 16 don't forget to change
             vec4 color = texture2D(u_paletteTex, uv);
             gl_FragColor = vec4(color.r, color.g, color.b, 1.0);
         }`;
-
-        // const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-        // if (!vertexShader) {
-        //     console.error("Failed to create vertex shader");
-        //     return;
-        // }
-        // gl.shaderSource(vertexShader, vertexShaderSource);
-        // gl.compileShader(vertexShader);
 
         const vertexShader = setShader(gl, vertexShaderSource, gl.VERTEX_SHADER);
         if (!vertexShader) {
             console.error("Failed to create vertex shader");
             return;
         }
-        
-
-        // const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-        // if (!fragmentShader) {
-        //     console.error("Failed to create fragment shader");
-        //     return;
-        // }
-        // gl.shaderSource(fragmentShader, fragmentShaderSource);
-        // gl.compileShader(fragmentShader);
 
         const fragmentShader = setShader(gl, fragmentShaderSource, gl.FRAGMENT_SHADER);
 
-        // const program = gl.createProgram();
-        // if (!program) {
-        //     console.error("Failed to create program");
-        //     return;
-        // }
-        // gl.attachShader(program, vertexShader);
-        // gl.attachShader(program, fragmentShader);
-        // gl.linkProgram(program);
-        // gl.useProgram(program);
-        const program = setProgram(gl, vertexShader, fragmentShader);
+        program = setProgram(gl, vertexShader, fragmentShader);
 
-        const posLoc = gl.getAttribLocation(program, "vertex_position");
+        posLoc = gl.getAttribLocation(program, "vertex_position");
         gl.enableVertexAttribArray(posLoc);
         gl.vertexAttribPointer(
             posLoc,
@@ -115,19 +94,81 @@ export default function WebGLCanvas() {
         const texLoc = gl.getUniformLocation(program, "u_texture");
         gl.uniform1i(texLoc, 0);
 
-
-        const offset_x = 0; // to take a specific sprite
-        const offset_y = 0; // to take a specific sprite
-        const offsetXLoc = gl.getUniformLocation(program, "offset_x");
-        const offsetYLoc = gl.getUniformLocation(program, "offset_y");
-        gl.uniform1f(offsetXLoc, offset_x);
-        gl.uniform1f(offsetYLoc, offset_y);
-
-        gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clearColor(0, 0, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
     }, []);
+
+    
+
+    function spr(gl, program, n: number, x: number, y: number, width: number = 1, height: number = 1) {
+        x = Math.floor(x);
+        y = Math.floor(y);
+        const x_sprite = n % (spriteNumber);
+        const y_sprite = Math.floor(n / (spriteNumber));
+
+        const vertices = rectangleToVertices(x,
+                                             y,
+                                             width * SPRITESIZE,
+                                             height * SPRITESIZE);
+                                            
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        gl.vertexAttribPointer(
+            posLoc,
+            2,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        );
+        gl.enableVertexAttribArray(posLoc);
+        const offsetXLoc = gl.getUniformLocation(program, "offset_x");
+        const offsetYLoc = gl.getUniformLocation(program, "offset_y");
+        console.log(x_sprite * SPRITESIZE - x)
+        gl.uniform1f(offsetXLoc, x_sprite * SPRITESIZE - x);
+        gl.uniform1f(offsetYLoc, y_sprite * SPRITESIZE - y);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+    }
+
+    function draw() {
+
+    }
+
+    useEffect(() => {
+        if (!canvasRef.current) return;
+        if (!gl) return;
+        if (!program) return;
+        let angle = 0;
+        let x_delta = 0;
+        gl.clearColor(0, 0, 0, 1);
+        const interval = setInterval(() => {
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            const radius = 50;
+            const centerX = WIDTH / 2;
+            const centerY = HEIGHT / 2;
+
+
+            for (let i = 0; i < 320*180/8; i++) {
+                const spriteIndex = 112 + i % 8;
+                const xOffset = (i % 4) * SPRITESIZE;
+                const yOffset = i / 4 * SPRITESIZE;
+                const x = x_delta + i ;
+                const y = i % 16 * SPRITESIZE;
+                spr(gl, program, spriteIndex, x + xOffset, y);
+            }
+            draw();
+            
+            angle += 0.05;
+            x_delta += 4;
+            if (x_delta > 100) {
+                x_delta = -100;
+            }
+        }, 1000 / 60);
+
+        return () => clearInterval(interval);
+    }, [program, gl]);
+
 
     return (
         <div>
