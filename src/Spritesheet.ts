@@ -134,16 +134,16 @@ export { sprite_table };
 
 function convertSpritesheetToRGBArray(sprite_table: string, width: number, height: number, stride: number) {
     const spriteSize = width * height;
-    const array = new Uint8Array(spriteSize*3);
+    const array = new Uint8Array(spriteSize);
     if (stride <= 0) {
         throw new Error("Stride must be greater than 0");
     }
     for (let i = 0; i < sprite_table.length; i+= stride) {
         const pixelHexa = sprite_table.slice(i, i + stride);
         const pixel = parseInt(pixelHexa, 16);
-        array[i / stride * 3] = (pixel)
-        array[i / stride * 3 + 1] = (pixel)
-        array[i / stride * 3 + 2] = (pixel)
+        array[i / stride] = (pixel)
+        // array[i / stride * 3 + 1] = (pixel)
+        // array[i / stride * 3 + 2] = (pixel)
     }
     return array;
 }

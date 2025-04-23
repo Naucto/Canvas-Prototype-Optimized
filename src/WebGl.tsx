@@ -56,11 +56,11 @@ export default function WebGLCanvas() {
         gl.texImage2D(
             gl.TEXTURE_2D,
             0,
-            gl.RGB,
+            gl.LUMINANCE,
             spriteSheet,
             spriteSheet,
             0,
-            gl.RGB,
+            gl.LUMINANCE,
             gl.UNSIGNED_BYTE,
             new Uint8Array(arrayBuffer)
         );
