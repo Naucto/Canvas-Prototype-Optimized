@@ -47,13 +47,12 @@ export default function WebGLCanvas() {
         const vertexShaderSource = `
             attribute vec2 vertex_position;
             attribute vec2 vertex_uv;
-            attribute vec2 flip;
             varying vec2 v_uv;
 
             void main() {
                 vec2 normalized = vertex_position / vec2(${WIDTH}.0, ${HEIGHT}.0);
                 vec2 clipSpace = normalized * 2.0 - 1.0;
-                gl_Position = vec4(clipSpace.x * flip.x, -clipSpace.y * flip.y, 0.0, 1.0);
+                gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
                 v_uv = vertex_uv;
             }
         `;
@@ -107,17 +106,28 @@ export default function WebGLCanvas() {
     function spr(gl, program, n: number, x: number, y: number, width: number = 1, height: number = 1, flip_h: number = 0, flip_v: number = 0) {
         x = Math.floor(x);
         y = Math.floor(y);
-        flip_h = flip_h ? -1 : 1;
-        flip_v = flip_v ? -1 : 1;
+        flip_h = flip_h ? 1 : 0;
+        flip_v = flip_v ? 1 : 0;
+        
         const x_sprite = n % (spriteNumber);
         const y_sprite = Math.floor(n / (spriteNumber));
 
-        const uv = rectangleToVertices(
-            x_sprite * SPRITESIZE,
-            y_sprite * SPRITESIZE,
-            width * SPRITESIZE,
-            height * SPRITESIZE
-          ).map(v => v / spriteSheetSize);
+        let u0 = x_sprite * SPRITESIZE / spriteSheetSize;
+        let v0 = y_sprite * SPRITESIZE / spriteSheetSize;
+        let u1 = (x_sprite + width) * SPRITESIZE / spriteSheetSize;
+        let v1 = (y_sprite + height) * SPRITESIZE / spriteSheetSize;
+        
+        if (flip_h) [u0, u1] = [u1, u0];
+        if (flip_v) [v0, v1] = [v1, v0];
+        
+        const uv = new Float32Array([
+            u0, v0,
+            u1, v0,
+            u0, v1,
+            u0, v1,
+            u1, v0,
+            u1, v1,
+        ]);
 
         const vertices = rectangleToVertices(
             x,
@@ -129,7 +139,9 @@ export default function WebGLCanvas() {
         // gl.drawArrays(gl.TRIANGLES, 0, 6);
         batchedVertices.push(...vertices);
         batchedUVs.push(...uv);
-        batchedFlips.push(flip_h, flip_v);
+        for (let i = 0; i < 6; i++) {
+            batchedFlips.push(flip_h, flip_v);
+        }
     }
 
     function draw() {
@@ -172,8 +184,8 @@ export default function WebGLCanvas() {
 
 
 
-            for (let i = 0; i < 1000; i++) {
-                const spriteIndex = 112 + i % 8;
+            for (let i = 0; i < 1; i++) {
+                const spriteIndex = 119 + i % 8;
                 const xOffset = (i % 4);
                 const x = x_delta + i ;
                 const y = i % 22 * SPRITESIZE;
@@ -181,7 +193,7 @@ export default function WebGLCanvas() {
             }
             
             angle += 0.05;
-            x_delta += 5;
+            x_delta += 1;
             if (x_delta > 300) {
                 x_delta = -100;
             }
