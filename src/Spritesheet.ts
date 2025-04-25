@@ -176,5 +176,5 @@ function getRGBArraysFromPalette(palette: string[], zeroAlphaIndex = 0): number[
     })
 }
 
-const palette = getRGBArraysFromPalette(paletteColors, 1);
+const palette = new Uint8Array(getRGBArraysFromPalette(paletteColors, 1));
 export { palette };

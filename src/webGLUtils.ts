@@ -29,13 +29,13 @@ export function setTexture(gl : WebGLRenderingContext,
         gl.TEXTURE_2D,
         0,
         format,
-        width,
-        height,
+        width, height,
         0,
         format,
         gl.UNSIGNED_BYTE,
         data
     );
+    return texture;
 }
 
 export function rectangleToVertices(x: number, y: number, width: number, height: number) {

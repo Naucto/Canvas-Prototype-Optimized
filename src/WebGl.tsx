@@ -15,7 +15,8 @@ export default function WebGLCanvas() {
     let uvLoc : number;
     let batchedVertices : number[] = [];
     let batchedUVs : number[] = [];
-
+    const current_palette: Uint8Array = new Uint8Array(palette);
+    let paletteTexture: WebGLTexture;
 
     useEffect(() => {
         
@@ -29,14 +30,19 @@ export default function WebGLCanvas() {
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
         // make the reading 1 byte to avoid skipping bytes
-        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+        // since the spritesheeet is a 128x128 and 128 is a multiple of 4
+        // it won't skip any bytes
+        // but if it's like 7x7
+        // it'll read 4bytes then read 4 bytes again
+        // but the last read byte won't be used
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
 
         const arrayBuffer = arrayTable
         setTexture(gl, spriteSheetSize, spriteSheetSize, new Uint8Array(arrayBuffer), gl.LUMINANCE);
 
         // I couldn't use an vec3 for the color in the fragment shader because it doesn't allow dynamic indexing
         // it is why I use a 1D texture
-        setTexture(gl, 16, 1, new Uint8Array(palette), gl.RGBA, gl.TEXTURE1);
+        paletteTexture = setTexture(gl, 16, 1, new Uint8Array(palette), gl.RGBA, gl.TEXTURE1);
         const vertices = rectangleToVertices(0,0, 128, 128);
         // WARNING: the vertices are in pixel coordinates, not in normalized coordinates, I prefer to use pixel coordinates
 
@@ -108,7 +114,33 @@ export default function WebGLCanvas() {
         gl.clear(gl.COLOR_BUFFER_BIT);
     }, []);
 
-    
+    function setColor(palette: Uint8Array, index: number, index2: number) {
+        current_palette[index * 4 ] = palette[index2 * 4];
+        current_palette[index * 4 + 1] = palette[index2 * 4 + 1];
+        current_palette[index * 4 + 2] = palette[index2 * 4 + 2];
+
+        applyPalette(current_palette);
+    }
+
+    function applyPalette(palette : Uint8Array) {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, paletteTexture);
+        gl.texSubImage2D(
+            gl.TEXTURE_2D,
+            0,
+            0,0,
+            palette.length / 4, 1,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            palette
+        );
+        draw();
+    }
+
+
+    function resetColor() {
+        applyPalette(palette);
+    }
 
     function spr(gl, program, n: number, x: number, y: number, width: number = 1, height: number = 1, flip_h: number = 0, flip_v: number = 0) {
         x = Math.floor(x);
@@ -149,6 +181,7 @@ export default function WebGLCanvas() {
     }
 
     function draw() {
+        if (batchedVertices.length === 0) return;
         const vertexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(batchedVertices), gl.STATIC_DRAW);
@@ -184,15 +217,22 @@ export default function WebGLCanvas() {
         let flip = 0;
         gl.clearColor(0.2, 0.2, 0.2, 1);
         const interval = setInterval(() => {
+            // setColor(palette, (0+x_delta)%16, (1+x_delta)%16);
             gl.clear(gl.COLOR_BUFFER_BIT);
+            
 
 
-
-            for (let i = 0; i < 10000; i++) {
+            for (let i = 0; i < 50000; i++) {
                 const spriteIndex = 112 + i % 13;
                 const xOffset = (i % 4);
                 const x = -20 + (i/7) + Math.sin(angle) * 10;
                 const y = i % 22 * SPRITESIZE + Math.cos(angle + 0.02 + i) * 10;
+                // if (i % 32 == x_delta % 32) {
+                //     setColor(palette, 7, 1);
+                // }
+                // if (i % 32 == (x_delta + 16) % 32) {
+                //     resetColor();
+                // }
                 spr(gl, program, spriteIndex, x + xOffset, y, 1, 1, flip, flip);
             }
             
