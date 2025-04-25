@@ -157,13 +157,24 @@ const paletteColors = [
     "#FF004D", "#FFA300", "#FFEC27", "#00E436", "#29ADFF", "#83769C", "#FF77A8", "#FFCCAA"
   ];
   
-function hexToRGBArray(hex: string): number[] {
-const r = parseInt(hex.slice(1, 3), 16);
-const g = parseInt(hex.slice(3, 5), 16);
-const b = parseInt(hex.slice(5, 7), 16);
-return [r, g, b];
+function hexToRGBArray(hex: string, alpha = 255): number[] {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const a = alpha;
+
+    return [r, g, b, a];
 }
 
-const palette = paletteColors.flatMap(hexToRGBArray);
+function getRGBArraysFromPalette(palette: string[], zeroAlphaIndex = 0): number[] {
+    return palette.flatMap((color, index) => {
+        const rgba = hexToRGBArray(color);
+        if (index === zeroAlphaIndex) {
+            rgba[3] = 0;
+        }
+        return rgba;
+    })
+}
 
+const palette = getRGBArraysFromPalette(paletteColors, 1);
 export { palette };

@@ -15,7 +15,6 @@ export default function WebGLCanvas() {
     let uvLoc : number;
     let batchedVertices : number[] = [];
     let batchedUVs : number[] = [];
-    let batchedFlips : number[] = [];
 
 
     useEffect(() => {
@@ -25,6 +24,11 @@ export default function WebGLCanvas() {
 
         gl = createGLContext(canvas);
 
+        //avoid that transparent pixels override the previous pixels
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+        // make the reading 1 byte to avoid skipping bytes
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
         const arrayBuffer = arrayTable
@@ -32,7 +36,7 @@ export default function WebGLCanvas() {
 
         // I couldn't use an vec3 for the color in the fragment shader because it doesn't allow dynamic indexing
         // it is why I use a 1D texture
-        setTexture(gl, 16, 1, new Uint8Array(palette), gl.RGB, gl.TEXTURE1);
+        setTexture(gl, 16, 1, new Uint8Array(palette), gl.RGBA, gl.TEXTURE1);
         const vertices = rectangleToVertices(0,0, 128, 128);
         // WARNING: the vertices are in pixel coordinates, not in normalized coordinates, I prefer to use pixel coordinates
 
@@ -40,17 +44,17 @@ export default function WebGLCanvas() {
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
 
-
         // since width and height are static in game, we can use them directly in the shader
         // since the sprite sheet is 128x128 and won't change in game
         
         const vertexShaderSource = `
+            uniform vec2 screen_resolution;
             attribute vec2 vertex_position;
             attribute vec2 vertex_uv;
             varying vec2 v_uv;
 
             void main() {
-                vec2 normalized = vertex_position / vec2(${WIDTH}.0, ${HEIGHT}.0);
+                vec2 normalized = vertex_position / vec2(screen_resolution.x, screen_resolution.y);
                 vec2 clipSpace = normalized * 2.0 - 1.0;
                 gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
                 v_uv = vertex_uv;
@@ -67,7 +71,7 @@ export default function WebGLCanvas() {
                 int index = int(texture2D(u_texture, v_uv).r * 255.0 + 0.5);
                 vec2 uv = vec2(float(index) / 16.0, 0.0); // pallete is 16 don't forget to change
                 vec4 color = texture2D(u_paletteTex, uv);
-                gl_FragColor = vec4(color.r, color.g, color.b, 1.0);
+                gl_FragColor = vec4(color.r, color.g, color.b, color.a);
             }`;
 
         const vertexShader = setShader(gl, vertexShaderSource, gl.VERTEX_SHADER);
@@ -96,6 +100,9 @@ export default function WebGLCanvas() {
 
         const texLoc = gl.getUniformLocation(program, "u_texture");
         gl.uniform1i(texLoc, 0);
+
+        const screenResolutionLoc = gl.getUniformLocation(program, "screen_resolution");
+        gl.uniform2f(screenResolutionLoc, WIDTH, HEIGHT);
 
         gl.clearColor(0, 0, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
@@ -139,9 +146,6 @@ export default function WebGLCanvas() {
         // gl.drawArrays(gl.TRIANGLES, 0, 6);
         batchedVertices.push(...vertices);
         batchedUVs.push(...uv);
-        for (let i = 0; i < 6; i++) {
-            batchedFlips.push(flip_h, flip_v);
-        }
     }
 
     function draw() {
@@ -160,7 +164,6 @@ export default function WebGLCanvas() {
 
         const flipBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, flipBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(batchedFlips), gl.STATIC_DRAW);
 
         const flipLoc = gl.getAttribLocation(program, "flip");
         gl.vertexAttribPointer(flipLoc, 2, gl.FLOAT, false, 0, 0);
@@ -178,21 +181,21 @@ export default function WebGLCanvas() {
         if (!program) return;
         let angle = 0;
         let x_delta = 0;
-        gl.clearColor(0, 0, 0, 1);
+        gl.clearColor(0.2, 0.2, 0.2, 1);
         const interval = setInterval(() => {
             gl.clear(gl.COLOR_BUFFER_BIT);
 
 
 
-            for (let i = 0; i < 1; i++) {
-                const spriteIndex = 119 + i % 8;
+            for (let i = 0; i < 10000; i++) {
+                const spriteIndex = 112 + i % 13;
                 const xOffset = (i % 4);
-                const x = x_delta + i ;
-                const y = i % 22 * SPRITESIZE;
+                const x = 20 + i + Math.sin(angle) * 10;
+                const y = i % 22 * SPRITESIZE + Math.cos(angle + 0.02 + i) * 10;
                 spr(gl, program, spriteIndex, x + xOffset, y, 1, 1, 1, 0);
             }
             
-            angle += 0.05;
+            angle += 0.15;
             x_delta += 1;
             if (x_delta > 300) {
                 x_delta = -100;
