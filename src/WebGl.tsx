@@ -181,6 +181,7 @@ export default function WebGLCanvas() {
         if (!program) return;
         let angle = 0;
         let x_delta = 0;
+        let flip = 0;
         gl.clearColor(0.2, 0.2, 0.2, 1);
         const interval = setInterval(() => {
             gl.clear(gl.COLOR_BUFFER_BIT);
@@ -190,12 +191,16 @@ export default function WebGLCanvas() {
             for (let i = 0; i < 10000; i++) {
                 const spriteIndex = 112 + i % 13;
                 const xOffset = (i % 4);
-                const x = 20 + i + Math.sin(angle) * 10;
+                const x = -20 + (i/7) + Math.sin(angle) * 10;
                 const y = i % 22 * SPRITESIZE + Math.cos(angle + 0.02 + i) * 10;
-                spr(gl, program, spriteIndex, x + xOffset, y, 1, 1, 1, 0);
+                spr(gl, program, spriteIndex, x + xOffset, y, 1, 1, flip, flip);
             }
             
             angle += 0.15;
+            if (angle > 2 * Math.PI) {
+                angle = 0;
+                flip = flip ? 0 : 1;
+            }
             x_delta += 1;
             if (x_delta > 300) {
                 x_delta = -100;
