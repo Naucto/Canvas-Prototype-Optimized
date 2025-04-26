@@ -4,7 +4,7 @@ import WebGLCanvas from './WebGl';
 function App() {
   return (
     <div>
-      <h1>PixiJS Demo</h1>
+      <h1>WEBGL Demo</h1>
       <WebGLCanvas />
     </div>
   );
